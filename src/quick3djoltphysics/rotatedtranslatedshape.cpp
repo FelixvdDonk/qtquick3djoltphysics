@@ -1,0 +1,47 @@
+#include "rotatedtranslatedshape_p.h"
+#include "physicsutils_p.h"
+
+#include <QtQuick3D/private/qquick3dobject_p.h>
+
+#include <Jolt/Jolt.h>
+#include <Jolt/Physics/Collision/Shape/EmptyShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+
+RotatedTranslatedShape::RotatedTranslatedShape(QQuick3DNode *parent) : AbstractShape(parent)
+{
+    connect(this, &QQuick3DNode::scenePositionChanged, this, [this] { handleShapeChange(); });
+    connect(this, &QQuick3DNode::sceneRotationChanged, this, [this] { handleShapeChange(); });
+}
+
+RotatedTranslatedShape::~RotatedTranslatedShape() = default;
+
+AbstractShape *RotatedTranslatedShape::shape() const
+{
+    return m_shape;
+}
+
+void RotatedTranslatedShape::setShape(AbstractShape *shape)
+{
+    if (m_shape == shape)
+        return;
+
+    QQuick3DObjectPrivate::attachWatcher(this, &RotatedTranslatedShape::setShape, shape, m_shape);
+    if (m_shape != nullptr)
+        m_shape->disconnect(m_shapeSignalConnection);
+    m_shape = shape;
+    if (m_shape) {
+        if (m_shape->parentItem() == nullptr)
+            m_shape->setParentItem(this);
+        m_shapeSignalConnection = QObject::connect(m_shape, &AbstractShape::changed, this,
+                                                   [this] { handleShapeChange(); });
+    }
+
+    handleShapeChange();
+}
+
+void RotatedTranslatedShape::createJoltShape()
+{
+    m_joltShape = new JPH::RotatedTranslatedShape(PhysicsUtils::toJoltType(position()),
+                                                  PhysicsUtils::toJoltType(rotation()),
+                                                  m_shape ? m_shape->getJoltShape() : new JPH::EmptyShape());
+}

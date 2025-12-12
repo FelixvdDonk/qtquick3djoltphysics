@@ -1,0 +1,41 @@
+#ifndef ABSTRACTPHYSICSNODE_P_H
+#define ABSTRACTPHYSICSNODE_P_H
+
+#include <QtQuick3DJoltPhysics/qtquick3djoltphysicsglobal.h>
+#include <QtQuick3D/private/qquick3dnode_p.h>
+
+namespace JPH {
+class PhysicsSystem;
+class TempAllocator;
+class BodyInterface;
+}
+
+class PhysicsSystem;
+
+class Q_QUICK3DJOLTPHYSICS_EXPORT AbstractPhysicsNode : public QQuick3DNode
+{
+    Q_OBJECT
+    QML_NAMED_ELEMENT(PhysicsNode)
+    QML_UNCREATABLE("abstract interface")
+public:
+    explicit AbstractPhysicsNode(QQuick3DNode *parent = nullptr);
+    ~AbstractPhysicsNode() override;
+
+protected:
+    void componentComplete() override;
+
+    virtual void updateJoltObject() = 0;
+    virtual void cleanup();
+    virtual void preSync(float deltaTime, QHash<QQuick3DNode *, QMatrix4x4> &transformCache);
+    virtual void sync();
+
+    JPH::PhysicsSystem *m_jolt = nullptr;
+    JPH::TempAllocator *m_tempAllocator = nullptr;
+    JPH::BodyInterface *m_bodyInterface = nullptr;
+
+private:
+    void init(JPH::PhysicsSystem *jolt, JPH::TempAllocator *tempAllocator);
+    friend class PhysicsSystem;
+};
+
+#endif // ABSTRACTPHYSICSNODE_P_H
