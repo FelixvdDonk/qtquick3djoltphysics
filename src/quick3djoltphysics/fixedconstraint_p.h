@@ -63,6 +63,9 @@ signals:
     void axisY1Changed(const QVector3D &axisY);
     void axisY2Changed(const QVector3D &axisY);
 
+public:
+    JPH::Ref<JPH::TwoBodyConstraintSettings> createJoltConstraintSettings() const override;
+
 protected:
     void updateJoltObject() override;
 

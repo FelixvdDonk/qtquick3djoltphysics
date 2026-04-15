@@ -240,6 +240,14 @@ private:
     friend class HingeConstraint;
     friend class SwingTwistConstraint;
     friend class FixedConstraint;
+    friend class SliderConstraint;
+    friend class SixDOFConstraint;
+    friend class ConeConstraint;
+    friend class GearConstraint;
+    friend class RackAndPinionConstraint;
+    friend class PulleyConstraint;
+    friend class PathConstraint;
+    friend class Ragdoll;
 };
 
 #endif // PHYSICSBODY_P_H

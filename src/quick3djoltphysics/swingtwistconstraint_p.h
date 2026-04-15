@@ -3,6 +3,7 @@
 
 #include "abstractphysicsconstraint_p.h"
 #include "body_p.h"
+#include "motorsettings_p.h"
 
 #include <QtQuick3DJoltPhysics/qtquick3djoltphysicsglobal.h>
 #include <QtQuick3D/private/qquick3dnode_p.h>
@@ -12,6 +13,7 @@
 #include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 
 #include <QVector3D>
+#include <QQuaternion>
 
 class Q_QUICK3DJOLTPHYSICS_EXPORT SwingTwistConstraint : public AbstractPhysicsConstraint
 {
@@ -30,6 +32,12 @@ class Q_QUICK3DJOLTPHYSICS_EXPORT SwingTwistConstraint : public AbstractPhysicsC
     Q_PROPERTY(float twistMinAngle READ twistMinAngle WRITE setTwistMinAngle NOTIFY twistMinAngleChanged)
     Q_PROPERTY(float twistMaxAngle READ twistMaxAngle WRITE setTwistMaxAngle NOTIFY twistMaxAngleChanged)
     Q_PROPERTY(float maxFrictionTorque READ maxFrictionTorque WRITE setMaxFrictionTorque NOTIFY maxFrictionTorqueChanged)
+    Q_PROPERTY(MotorSettings *swingMotorSettings READ swingMotorSettings WRITE setSwingMotorSettings NOTIFY swingMotorSettingsChanged)
+    Q_PROPERTY(MotorSettings *twistMotorSettings READ twistMotorSettings WRITE setTwistMotorSettings NOTIFY twistMotorSettingsChanged)
+    Q_PROPERTY(MotorState swingMotorState READ swingMotorState WRITE setSwingMotorState NOTIFY swingMotorStateChanged)
+    Q_PROPERTY(MotorState twistMotorState READ twistMotorState WRITE setTwistMotorState NOTIFY twistMotorStateChanged)
+    Q_PROPERTY(QVector3D targetAngularVelocityCS READ targetAngularVelocityCS WRITE setTargetAngularVelocityCS NOTIFY targetAngularVelocityCSChanged)
+    Q_PROPERTY(QQuaternion targetOrientationCS READ targetOrientationCS WRITE setTargetOrientationCS NOTIFY targetOrientationCSChanged)
     QML_NAMED_ELEMENT(SwingTwistConstraint)
 public:
     explicit SwingTwistConstraint(QQuick3DNode *parent = nullptr);
@@ -40,6 +48,13 @@ public:
         Pyramid,
     };
     Q_ENUM(SwingType)
+
+    enum class MotorState {
+        Off,
+        Velocity,
+        Position,
+    };
+    Q_ENUM(MotorState)
 
     Body *body1() const;
     void setBody1(Body *body);
@@ -83,6 +98,34 @@ public:
     float maxFrictionTorque() const;
     void setMaxFrictionTorque(float maxFrictionTorque);
 
+    MotorSettings *swingMotorSettings() const;
+    void setSwingMotorSettings(MotorSettings *swingMotorSettings);
+
+    MotorSettings *twistMotorSettings() const;
+    void setTwistMotorSettings(MotorSettings *twistMotorSettings);
+
+    MotorState swingMotorState() const;
+    void setSwingMotorState(MotorState swingMotorState);
+
+    MotorState twistMotorState() const;
+    void setTwistMotorState(MotorState twistMotorState);
+
+    QVector3D targetAngularVelocityCS() const;
+    void setTargetAngularVelocityCS(const QVector3D &targetAngularVelocityCS);
+
+    QQuaternion targetOrientationCS() const;
+    void setTargetOrientationCS(const QQuaternion &targetOrientationCS);
+
+    Q_INVOKABLE QQuaternion getRotationInConstraintSpace() const;
+    Q_INVOKABLE void setTargetOrientationBS(const QQuaternion &orientation);
+    Q_INVOKABLE QVector3D getTotalLambdaPosition() const;
+    Q_INVOKABLE float getTotalLambdaTwist() const;
+    Q_INVOKABLE float getTotalLambdaSwingY() const;
+    Q_INVOKABLE float getTotalLambdaSwingZ() const;
+    Q_INVOKABLE QVector3D getTotalLambdaMotor() const;
+
+    JPH::Ref<JPH::TwoBodyConstraintSettings> createJoltConstraintSettings() const override;
+
 signals:
     void body1Changed(Body *body1);
     void body2Changed(Body *body2);
@@ -98,6 +141,12 @@ signals:
     void twistMinAngleChanged(float twistMinAngle);
     void twistMaxAngleChanged(float twistMaxAngle);
     void maxFrictionTorqueChanged(float maxFrictionTorque);
+    void swingMotorSettingsChanged(MotorSettings *swingMotorSettings);
+    void twistMotorSettingsChanged(MotorSettings *twistMotorSettings);
+    void swingMotorStateChanged(MotorState swingMotorState);
+    void twistMotorStateChanged(MotorState twistMotorState);
+    void targetAngularVelocityCSChanged(const QVector3D &targetAngularVelocityCS);
+    void targetOrientationCSChanged(const QQuaternion &targetOrientationCS);
 
 protected:
     void updateJoltObject() override;
@@ -115,6 +164,14 @@ private:
     float m_planeHalfConeAngle = 0.0f;
     float m_twistMinAngle = 0.0f;
     float m_twistMaxAngle = 0.0f;
+    MotorSettings *m_swingMotorSettings = nullptr;
+    QMetaObject::Connection m_swingMotorSettingsConnection;
+    MotorSettings *m_twistMotorSettings = nullptr;
+    QMetaObject::Connection m_twistMotorSettingsConnection;
+    MotorState m_swingMotorState = MotorState::Off;
+    MotorState m_twistMotorState = MotorState::Off;
+    QVector3D m_targetAngularVelocityCS;
+    QQuaternion m_targetOrientationCS;
     JPH::SwingTwistConstraintSettings m_constraintSettings;
 };
 

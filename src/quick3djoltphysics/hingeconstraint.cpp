@@ -2,6 +2,7 @@
 #include "physicsutils_p.h"
 
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Constraints/MotorSettings.h>
 
 HingeConstraint::HingeConstraint(QQuick3DNode *parent) : AbstractPhysicsConstraint(parent)
 {
@@ -259,6 +260,129 @@ void HingeConstraint::setMaxFrictionTorque(float maxFrictionTorque)
     emit maxFrictionTorqueChanged(maxFrictionTorque);
 }
 
+MotorSettings *HingeConstraint::motorSettings() const
+{
+    return m_motorSettings;
+}
+
+void HingeConstraint::setMotorSettings(MotorSettings *motorSettings)
+{
+    if (m_motorSettings == motorSettings)
+        return;
+
+    if (m_motorSettings)
+        m_motorSettings->disconnect(m_motorSettingsConnection);
+
+    m_motorSettings = motorSettings;
+
+    m_motorSettingsConnection = QObject::connect(m_motorSettings, &MotorSettings::changed, this,
+                    [this]
+    {
+        if (m_constraint != nullptr)
+            static_cast<JPH::HingeConstraint *>(m_constraint)->GetMotorSettings() = m_motorSettings->getJoltMotorSettings();
+    });
+    QObject::connect(m_motorSettings, &QObject::destroyed, this,
+                     [this](QObject *obj)
+    {
+        if (m_motorSettings == obj) {
+            m_motorSettings = nullptr;
+            if (m_constraint != nullptr)
+                static_cast<JPH::HingeConstraint *>(m_constraint)->GetMotorSettings() = JPH::MotorSettings();
+        }
+    });
+
+    if (m_constraint != nullptr)
+        static_cast<JPH::HingeConstraint *>(m_constraint)->GetMotorSettings() = m_motorSettings->getJoltMotorSettings();
+
+    emit motorSettingsChanged(m_motorSettings);
+}
+
+HingeConstraint::MotorState HingeConstraint::motorState() const
+{
+    return m_motorState;
+}
+
+void HingeConstraint::setMotorState(MotorState motorState)
+{
+    if (m_motorState == motorState)
+        return;
+
+    m_motorState = motorState;
+
+    if (m_constraint)
+        static_cast<JPH::HingeConstraint *>(m_constraint)->SetMotorState(static_cast<JPH::EMotorState>(m_motorState));
+
+    emit motorStateChanged(m_motorState);
+}
+
+float HingeConstraint::targetAngularVelocity() const
+{
+    return m_targetAngularVelocity;
+}
+
+void HingeConstraint::setTargetAngularVelocity(float targetAngularVelocity)
+{
+    if (qFuzzyCompare(m_targetAngularVelocity, targetAngularVelocity))
+        return;
+
+    m_targetAngularVelocity = targetAngularVelocity;
+
+    if (m_constraint)
+        static_cast<JPH::HingeConstraint *>(m_constraint)->SetTargetAngularVelocity(qDegreesToRadians(m_targetAngularVelocity));
+
+    emit targetAngularVelocityChanged(m_targetAngularVelocity);
+}
+
+float HingeConstraint::targetAngle() const
+{
+    return m_targetAngle;
+}
+
+void HingeConstraint::setTargetAngle(float targetAngle)
+{
+    if (qFuzzyCompare(m_targetAngle, targetAngle))
+        return;
+
+    m_targetAngle = targetAngle;
+
+    if (m_constraint)
+        static_cast<JPH::HingeConstraint *>(m_constraint)->SetTargetAngle(qDegreesToRadians(m_targetAngle));
+
+    emit targetAngleChanged(m_targetAngle);
+}
+
+float HingeConstraint::getCurrentAngle() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return qRadiansToDegrees(static_cast<JPH::HingeConstraint *>(m_constraint)->GetCurrentAngle());
+}
+
+float HingeConstraint::getTotalLambdaMotor() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return static_cast<JPH::HingeConstraint *>(m_constraint)->GetTotalLambdaMotor();
+}
+
+QVector3D HingeConstraint::getTotalLambdaPosition() const
+{
+    if (m_constraint == nullptr)
+        return QVector3D();
+
+    return PhysicsUtils::toQtType(static_cast<JPH::HingeConstraint *>(m_constraint)->GetTotalLambdaPosition());
+}
+
+float HingeConstraint::getTotalLambdaRotationLimits() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return static_cast<JPH::HingeConstraint *>(m_constraint)->GetTotalLambdaRotationLimits();
+}
+
 void HingeConstraint::updateJoltObject()
 {
     if (m_jolt == nullptr || m_body1 == nullptr || m_body2 == nullptr || m_constraint)
@@ -276,6 +400,41 @@ void HingeConstraint::updateJoltObject()
     if (m_limitsSpringSettings)
         m_constraintSettings.mLimitsSpringSettings = m_limitsSpringSettings->getJoltSpringSettings();
 
+    if (m_motorSettings)
+        m_constraintSettings.mMotorSettings = m_motorSettings->getJoltMotorSettings();
+
     m_constraint = m_constraintSettings.Create(*m_body1->m_body, *m_body2->m_body);
+
+    auto *hinge = static_cast<JPH::HingeConstraint *>(m_constraint);
+
+    if (m_motorState != MotorState::Off)
+        hinge->SetMotorState(static_cast<JPH::EMotorState>(m_motorState));
+
+    if (m_motorState == MotorState::Velocity)
+        hinge->SetTargetAngularVelocity(qDegreesToRadians(m_targetAngularVelocity));
+    else if (m_motorState == MotorState::Position)
+        hinge->SetTargetAngle(qDegreesToRadians(m_targetAngle));
+
     m_jolt->AddConstraint(m_constraint);
+}
+
+JPH::Ref<JPH::TwoBodyConstraintSettings> HingeConstraint::createJoltConstraintSettings() const
+{
+    auto *s = new JPH::HingeConstraintSettings();
+    s->mPoint1 = PhysicsUtils::toJoltType(m_point1);
+    s->mPoint2 = PhysicsUtils::toJoltType(m_point2);
+    s->mHingeAxis1 = PhysicsUtils::toJoltType(m_hingeAxis1);
+    s->mHingeAxis2 = PhysicsUtils::toJoltType(m_hingeAxis2);
+    s->mNormalAxis1 = PhysicsUtils::toJoltType(m_normalAxis1);
+    s->mNormalAxis2 = PhysicsUtils::toJoltType(m_normalAxis2);
+    s->mLimitsMin = qDegreesToRadians(m_limitsMin);
+    s->mLimitsMax = qDegreesToRadians(m_limitsMax);
+    s->mMaxFrictionTorque = m_constraintSettings.mMaxFrictionTorque;
+
+    if (m_limitsSpringSettings)
+        s->mLimitsSpringSettings = m_limitsSpringSettings->getJoltSpringSettings();
+    if (m_motorSettings)
+        s->mMotorSettings = m_motorSettings->getJoltMotorSettings();
+
+    return s;
 }

@@ -4,6 +4,7 @@
 #include "abstractphysicsconstraint_p.h"
 #include "body_p.h"
 #include "springsettings_p.h"
+#include "motorsettings_p.h"
 
 #include <QtQuick3DJoltPhysics/qtquick3djoltphysicsglobal.h>
 #include <QtQuick3D/private/qquick3dnode_p.h>
@@ -30,10 +31,21 @@ class Q_QUICK3DJOLTPHYSICS_EXPORT HingeConstraint : public AbstractPhysicsConstr
     Q_PROPERTY(float limitsMax READ limitsMax WRITE setLimitsMax NOTIFY limitsMaxChanged)
     Q_PROPERTY(SpringSettings *limitsSpringSettings READ limitsSpringSettings WRITE setLimitsSpringSettings NOTIFY limitsSpringSettingsChanged)
     Q_PROPERTY(float maxFrictionTorque READ maxFrictionTorque WRITE setMaxFrictionTorque NOTIFY maxFrictionTorqueChanged)
+    Q_PROPERTY(MotorSettings *motorSettings READ motorSettings WRITE setMotorSettings NOTIFY motorSettingsChanged)
+    Q_PROPERTY(MotorState motorState READ motorState WRITE setMotorState NOTIFY motorStateChanged)
+    Q_PROPERTY(float targetAngularVelocity READ targetAngularVelocity WRITE setTargetAngularVelocity NOTIFY targetAngularVelocityChanged)
+    Q_PROPERTY(float targetAngle READ targetAngle WRITE setTargetAngle NOTIFY targetAngleChanged)
     QML_NAMED_ELEMENT(HingeConstraint)
 public:
     explicit HingeConstraint(QQuick3DNode *parent = nullptr);
     ~HingeConstraint() override;
+
+    enum class MotorState {
+        Off,
+        Velocity,
+        Position,
+    };
+    Q_ENUM(MotorState)
 
     QVector3D point1() const;
     void setPoint1(const QVector3D &point);
@@ -71,6 +83,25 @@ public:
     float maxFrictionTorque() const;
     void setMaxFrictionTorque(float maxFrictionTorque);
 
+    MotorSettings *motorSettings() const;
+    void setMotorSettings(MotorSettings *motorSettings);
+
+    MotorState motorState() const;
+    void setMotorState(MotorState motorState);
+
+    float targetAngularVelocity() const;
+    void setTargetAngularVelocity(float targetAngularVelocity);
+
+    float targetAngle() const;
+    void setTargetAngle(float targetAngle);
+
+    Q_INVOKABLE float getCurrentAngle() const;
+    Q_INVOKABLE float getTotalLambdaMotor() const;
+    Q_INVOKABLE QVector3D getTotalLambdaPosition() const;
+    Q_INVOKABLE float getTotalLambdaRotationLimits() const;
+
+    JPH::Ref<JPH::TwoBodyConstraintSettings> createJoltConstraintSettings() const override;
+
 signals:
     void point1Changed(const QVector3D &point);
     void point2Changed(const QVector3D &point);
@@ -84,6 +115,10 @@ signals:
     void limitsMaxChanged(float limitsMax);
     void limitsSpringSettingsChanged(SpringSettings *limitsSpringSettings);
     void maxFrictionTorqueChanged(float maxFrictionTorque);
+    void motorSettingsChanged(MotorSettings *motorSettings);
+    void motorStateChanged(MotorState motorState);
+    void targetAngularVelocityChanged(float targetAngularVelocity);
+    void targetAngleChanged(float targetAngle);
 
 protected:
     void updateJoltObject() override;
@@ -101,6 +136,11 @@ private:
     float m_limitsMax = 180.0;
     SpringSettings *m_limitsSpringSettings = nullptr;
     QMetaObject::Connection m_limitsSpringSettingsConnection;
+    MotorSettings *m_motorSettings = nullptr;
+    QMetaObject::Connection m_motorSettingsConnection;
+    MotorState m_motorState = MotorState::Off;
+    float m_targetAngularVelocity = 0.0f;
+    float m_targetAngle = 0.0f;
     JPH::HingeConstraintSettings m_constraintSettings;
 };
 

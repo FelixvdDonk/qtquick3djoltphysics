@@ -2,6 +2,7 @@
 
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Constraints/TwoBodyConstraint.h>
 
 AbstractPhysicsConstraint::AbstractPhysicsConstraint(QQuick3DNode *parent) : AbstractPhysicsNode(parent)
 {
@@ -10,6 +11,11 @@ AbstractPhysicsConstraint::AbstractPhysicsConstraint(QQuick3DNode *parent) : Abs
 AbstractPhysicsConstraint::~AbstractPhysicsConstraint()
 {
     cleanup();
+}
+
+JPH::Ref<JPH::TwoBodyConstraintSettings> AbstractPhysicsConstraint::createJoltConstraintSettings() const
+{
+    return nullptr;
 }
 
 void AbstractPhysicsConstraint::cleanup()

@@ -184,3 +184,15 @@ void FixedConstraint::updateJoltObject()
     m_constraint = m_constraintSettings.Create(*m_body1->m_body, *m_body2->m_body);
     m_jolt->AddConstraint(m_constraint);
 }
+
+JPH::Ref<JPH::TwoBodyConstraintSettings> FixedConstraint::createJoltConstraintSettings() const
+{
+    auto *s = new JPH::FixedConstraintSettings();
+    s->mPoint1 = PhysicsUtils::toJoltType(m_point1);
+    s->mPoint2 = PhysicsUtils::toJoltType(m_point2);
+    s->mAxisX1 = PhysicsUtils::toJoltType(m_axisX1);
+    s->mAxisX2 = PhysicsUtils::toJoltType(m_axisX2);
+    s->mAxisY1 = PhysicsUtils::toJoltType(m_axisY1);
+    s->mAxisY2 = PhysicsUtils::toJoltType(m_axisY2);
+    return s;
+}

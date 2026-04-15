@@ -20,6 +20,7 @@
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/StateRecorderImpl.h>
 
 Q_LOGGING_CATEGORY(lcQuick3dJoltPhysics, "qt.quick3d.joltphysics")
 
@@ -445,6 +446,32 @@ void PhysicsSystem::setContactListener(AbstractContactListener *contactListener)
     emit contactListenerChanged(m_contactListener);
 }
 
+AbstractSoftBodyContactListener *PhysicsSystem::softBodyContactListener() const
+{
+    return m_softBodyContactListener;
+}
+
+void PhysicsSystem::setSoftBodyContactListener(AbstractSoftBodyContactListener *listener)
+{
+    if (m_softBodyContactListener == listener)
+        return;
+
+    m_softBodyContactListener = listener;
+
+    QObject::connect(m_softBodyContactListener, &QObject::destroyed, this,
+                     [this]
+                     {
+                         m_softBodyContactListener = nullptr;
+                         if (m_jolt)
+                             m_jolt->SetSoftBodyContactListener(nullptr);
+                     });
+
+    if (m_jolt)
+        m_jolt->SetSoftBodyContactListener(m_softBodyContactListener->getJoltSoftBodyContactListener());
+
+    emit softBodyContactListenerChanged(m_softBodyContactListener);
+}
+
 QQuick3DNode *PhysicsSystem::scene() const
 {
     return m_scene;
@@ -477,6 +504,136 @@ void PhysicsSystem::setScene(QQuick3DNode *scene)
     }
 
     emit sceneChanged(m_scene);
+}
+
+float PhysicsSystem::timeScale() const
+{
+    return m_timeScale;
+}
+
+void PhysicsSystem::setTimeScale(float timeScale)
+{
+    if (timeScale < 0.0f)
+        timeScale = 0.0f;
+
+    if (qFuzzyCompare(m_timeScale, timeScale))
+        return;
+
+    m_timeScale = timeScale;
+    emit timeScaleChanged(m_timeScale);
+}
+
+float PhysicsSystem::fixedTimestep() const
+{
+    return m_fixedTimestep;
+}
+
+void PhysicsSystem::setFixedTimestep(float fixedTimestep)
+{
+    if (fixedTimestep < 0.0f)
+        fixedTimestep = 0.0f;
+
+    if (qFuzzyCompare(m_fixedTimestep, fixedTimestep))
+        return;
+
+    m_fixedTimestep = fixedTimestep;
+    m_timeAccumulator = 0.0f;
+    emit fixedTimestepChanged(m_fixedTimestep);
+}
+
+int PhysicsSystem::maxSubSteps() const
+{
+    return m_maxSubSteps;
+}
+
+void PhysicsSystem::setMaxSubSteps(int maxSubSteps)
+{
+    if (maxSubSteps < 1)
+        maxSubSteps = 1;
+
+    if (m_maxSubSteps == maxSubSteps)
+        return;
+
+    m_maxSubSteps = maxSubSteps;
+    emit maxSubStepsChanged(m_maxSubSteps);
+}
+
+void PhysicsSystem::stepPhysics(float deltaTimeSeconds, int collisionSteps)
+{
+    if (!m_physicsInitialized || m_jolt == nullptr)
+        return;
+
+    if (deltaTimeSeconds <= 0.0f)
+        return;
+
+    int steps = (collisionSteps > 0) ? collisionSteps : m_collisionSteps;
+    doPhysicsStep(deltaTimeSeconds, steps);
+}
+
+PhysicsState *PhysicsSystem::saveState()
+{
+    if (!m_physicsInitialized || m_jolt == nullptr)
+        return nullptr;
+
+    JPH::StateRecorderImpl recorder;
+    m_jolt->SaveState(recorder);
+
+    auto *state = new PhysicsState(this);
+    state->m_data = recorder.GetData();
+    return state;
+}
+
+bool PhysicsSystem::restoreState(PhysicsState *state)
+{
+    if (!m_physicsInitialized || m_jolt == nullptr || state == nullptr)
+        return false;
+
+    JPH::StateRecorderImpl recorder;
+    recorder.WriteBytes(state->m_data.data(), state->m_data.size());
+    recorder.Rewind();
+
+    return m_jolt->RestoreState(recorder);
+}
+
+QQmlListProperty<AbstractPhysicsStepListener> PhysicsSystem::stepListeners()
+{
+    return QQmlListProperty<AbstractPhysicsStepListener>(this, nullptr,
+                                                         &PhysicsSystem::appendStepListener,
+                                                         &PhysicsSystem::stepListenerCount,
+                                                         &PhysicsSystem::stepListenerAt,
+                                                         &PhysicsSystem::clearStepListeners);
+}
+
+void PhysicsSystem::appendStepListener(QQmlListProperty<AbstractPhysicsStepListener> *list, AbstractPhysicsStepListener *listener)
+{
+    auto *self = static_cast<PhysicsSystem *>(list->object);
+    listener->m_physicsSystem = self;
+    self->m_stepListeners.append(listener);
+
+    if (self->m_physicsInitialized && self->m_jolt)
+        self->m_jolt->AddStepListener(listener);
+}
+
+qsizetype PhysicsSystem::stepListenerCount(QQmlListProperty<AbstractPhysicsStepListener> *list)
+{
+    return static_cast<PhysicsSystem *>(list->object)->m_stepListeners.size();
+}
+
+AbstractPhysicsStepListener *PhysicsSystem::stepListenerAt(QQmlListProperty<AbstractPhysicsStepListener> *list, qsizetype index)
+{
+    return static_cast<PhysicsSystem *>(list->object)->m_stepListeners.at(index);
+}
+
+void PhysicsSystem::clearStepListeners(QQmlListProperty<AbstractPhysicsStepListener> *list)
+{
+    auto *self = static_cast<PhysicsSystem *>(list->object);
+    if (self->m_physicsInitialized && self->m_jolt) {
+        for (auto *listener : std::as_const(self->m_stepListeners))
+            self->m_jolt->RemoveStepListener(listener);
+    }
+    for (auto *listener : std::as_const(self->m_stepListeners))
+        listener->m_physicsSystem = nullptr;
+    self->m_stepListeners.clear();
 }
 
 static RayCastResult castRay_helper(JPH::PhysicsSystem *jolt, const QVector3D &origin, const QVector3D &direction, const JPH::BroadPhaseLayerFilter &broadPhaseLayerFilter, const JPH::ObjectLayerFilter &objectLayerFilter, const QVector<AbstractPhysicsBody *> &bodyFilter)
@@ -1030,7 +1187,13 @@ void PhysicsSystem::initPhysics()
     if (m_contactListener)
         m_jolt->SetContactListener(m_contactListener->getJoltContactListener());
 
+    if (m_softBodyContactListener)
+        m_jolt->SetSoftBodyContactListener(m_softBodyContactListener->getJoltSoftBodyContactListener());
+
     m_jolt->SetGravity(PhysicsUtils::toJoltType(m_gravity));
+
+    for (auto *listener : std::as_const(m_stepListeners))
+        m_jolt->AddStepListener(listener);
 
     m_physicsInitialized = true;
 }
@@ -1084,10 +1247,29 @@ void PhysicsSystem::updateCurrentTime(int currentTime)
 
     dt = time - dt;
 
-    float deltaTime = dt / 1000.0f;
-    if (deltaTime < 0.0f)
+    float wallDt = dt / 1000.0f;
+    if (wallDt < 0.0f)
         return;
 
+    float scaledDt = wallDt * m_timeScale;
+    if (scaledDt <= 0.0f)
+        return;
+
+    if (m_fixedTimestep > 0.0f) {
+        m_timeAccumulator += scaledDt;
+        int steps = 0;
+        while (m_timeAccumulator >= m_fixedTimestep && steps < m_maxSubSteps) {
+            doPhysicsStep(m_fixedTimestep, m_collisionSteps);
+            m_timeAccumulator -= m_fixedTimestep;
+            steps++;
+        }
+    } else {
+        doPhysicsStep(scaledDt, m_collisionSteps);
+    }
+}
+
+void PhysicsSystem::doPhysicsStep(float deltaTime, int collisionSteps)
+{
     matchOrphanPhysicsNodes();
     emitContactCallbacks();
 
@@ -1103,7 +1285,7 @@ void PhysicsSystem::updateCurrentTime(int currentTime)
     for (auto physicsNode : std::as_const(m_physicsNodes))
         physicsNode->preSync(deltaTime, transformCache);
 
-    m_jolt->Update(deltaTime, m_collisionSteps, m_tempAllocator, m_jobSystem);
+    m_jolt->Update(deltaTime, collisionSteps, m_tempAllocator, m_jobSystem);
 
     for (auto physicsNode : std::as_const(m_physicsNodes))
         physicsNode->sync();

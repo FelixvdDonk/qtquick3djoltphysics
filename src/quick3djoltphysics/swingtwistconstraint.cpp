@@ -2,6 +2,7 @@
 #include "physicsutils_p.h"
 
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/Constraints/MotorSettings.h>
 
 SwingTwistConstraint::SwingTwistConstraint(QQuick3DNode *parent) : AbstractPhysicsConstraint(parent)
 {
@@ -274,6 +275,214 @@ void SwingTwistConstraint::setMaxFrictionTorque(float maxFrictionTorque)
     emit maxFrictionTorqueChanged(maxFrictionTorque);
 }
 
+MotorSettings *SwingTwistConstraint::swingMotorSettings() const
+{
+    return m_swingMotorSettings;
+}
+
+void SwingTwistConstraint::setSwingMotorSettings(MotorSettings *swingMotorSettings)
+{
+    if (m_swingMotorSettings == swingMotorSettings)
+        return;
+
+    if (m_swingMotorSettings)
+        m_swingMotorSettings->disconnect(m_swingMotorSettingsConnection);
+
+    m_swingMotorSettings = swingMotorSettings;
+
+    m_swingMotorSettingsConnection = QObject::connect(m_swingMotorSettings, &MotorSettings::changed, this,
+                    [this]
+    {
+        if (m_constraint != nullptr)
+            static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetSwingMotorSettings() = m_swingMotorSettings->getJoltMotorSettings();
+    });
+    QObject::connect(m_swingMotorSettings, &QObject::destroyed, this,
+                     [this](QObject *obj)
+    {
+        if (m_swingMotorSettings == obj) {
+            m_swingMotorSettings = nullptr;
+            if (m_constraint != nullptr)
+                static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetSwingMotorSettings() = JPH::MotorSettings();
+        }
+    });
+
+    if (m_constraint != nullptr)
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetSwingMotorSettings() = m_swingMotorSettings->getJoltMotorSettings();
+
+    emit swingMotorSettingsChanged(m_swingMotorSettings);
+}
+
+MotorSettings *SwingTwistConstraint::twistMotorSettings() const
+{
+    return m_twistMotorSettings;
+}
+
+void SwingTwistConstraint::setTwistMotorSettings(MotorSettings *twistMotorSettings)
+{
+    if (m_twistMotorSettings == twistMotorSettings)
+        return;
+
+    if (m_twistMotorSettings)
+        m_twistMotorSettings->disconnect(m_twistMotorSettingsConnection);
+
+    m_twistMotorSettings = twistMotorSettings;
+
+    m_twistMotorSettingsConnection = QObject::connect(m_twistMotorSettings, &MotorSettings::changed, this,
+                    [this]
+    {
+        if (m_constraint != nullptr)
+            static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTwistMotorSettings() = m_twistMotorSettings->getJoltMotorSettings();
+    });
+    QObject::connect(m_twistMotorSettings, &QObject::destroyed, this,
+                     [this](QObject *obj)
+    {
+        if (m_twistMotorSettings == obj) {
+            m_twistMotorSettings = nullptr;
+            if (m_constraint != nullptr)
+                static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTwistMotorSettings() = JPH::MotorSettings();
+        }
+    });
+
+    if (m_constraint != nullptr)
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTwistMotorSettings() = m_twistMotorSettings->getJoltMotorSettings();
+
+    emit twistMotorSettingsChanged(m_twistMotorSettings);
+}
+
+SwingTwistConstraint::MotorState SwingTwistConstraint::swingMotorState() const
+{
+    return m_swingMotorState;
+}
+
+void SwingTwistConstraint::setSwingMotorState(MotorState swingMotorState)
+{
+    if (m_swingMotorState == swingMotorState)
+        return;
+
+    m_swingMotorState = swingMotorState;
+
+    if (m_constraint)
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->SetSwingMotorState(static_cast<JPH::EMotorState>(m_swingMotorState));
+
+    emit swingMotorStateChanged(m_swingMotorState);
+}
+
+SwingTwistConstraint::MotorState SwingTwistConstraint::twistMotorState() const
+{
+    return m_twistMotorState;
+}
+
+void SwingTwistConstraint::setTwistMotorState(MotorState twistMotorState)
+{
+    if (m_twistMotorState == twistMotorState)
+        return;
+
+    m_twistMotorState = twistMotorState;
+
+    if (m_constraint)
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->SetTwistMotorState(static_cast<JPH::EMotorState>(m_twistMotorState));
+
+    emit twistMotorStateChanged(m_twistMotorState);
+}
+
+QVector3D SwingTwistConstraint::targetAngularVelocityCS() const
+{
+    return m_targetAngularVelocityCS;
+}
+
+void SwingTwistConstraint::setTargetAngularVelocityCS(const QVector3D &targetAngularVelocityCS)
+{
+    if (m_targetAngularVelocityCS == targetAngularVelocityCS)
+        return;
+
+    m_targetAngularVelocityCS = targetAngularVelocityCS;
+
+    if (m_constraint) {
+        const JPH::Vec3 radPerSec(qDegreesToRadians(m_targetAngularVelocityCS.x()),
+                                  qDegreesToRadians(m_targetAngularVelocityCS.y()),
+                                  qDegreesToRadians(m_targetAngularVelocityCS.z()));
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->SetTargetAngularVelocityCS(radPerSec);
+    }
+
+    emit targetAngularVelocityCSChanged(m_targetAngularVelocityCS);
+}
+
+QQuaternion SwingTwistConstraint::targetOrientationCS() const
+{
+    return m_targetOrientationCS;
+}
+
+void SwingTwistConstraint::setTargetOrientationCS(const QQuaternion &targetOrientationCS)
+{
+    if (m_targetOrientationCS == targetOrientationCS)
+        return;
+
+    m_targetOrientationCS = targetOrientationCS;
+
+    if (m_constraint)
+        static_cast<JPH::SwingTwistConstraint *>(m_constraint)->SetTargetOrientationCS(PhysicsUtils::toJoltType(m_targetOrientationCS));
+
+    emit targetOrientationCSChanged(m_targetOrientationCS);
+}
+
+QQuaternion SwingTwistConstraint::getRotationInConstraintSpace() const
+{
+    if (m_constraint == nullptr)
+        return QQuaternion();
+
+    return PhysicsUtils::toQtType(static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetRotationInConstraintSpace());
+}
+
+void SwingTwistConstraint::setTargetOrientationBS(const QQuaternion &orientation)
+{
+    if (m_constraint == nullptr) {
+        qWarning() << "Warning: Cannot call setTargetOrientationBS before constraint is initialized";
+        return;
+    }
+
+    static_cast<JPH::SwingTwistConstraint *>(m_constraint)->SetTargetOrientationBS(PhysicsUtils::toJoltType(orientation));
+}
+
+QVector3D SwingTwistConstraint::getTotalLambdaPosition() const
+{
+    if (m_constraint == nullptr)
+        return QVector3D();
+
+    return PhysicsUtils::toQtType(static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTotalLambdaPosition());
+}
+
+float SwingTwistConstraint::getTotalLambdaTwist() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTotalLambdaTwist();
+}
+
+float SwingTwistConstraint::getTotalLambdaSwingY() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTotalLambdaSwingY();
+}
+
+float SwingTwistConstraint::getTotalLambdaSwingZ() const
+{
+    if (m_constraint == nullptr)
+        return 0.0f;
+
+    return static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTotalLambdaSwingZ();
+}
+
+QVector3D SwingTwistConstraint::getTotalLambdaMotor() const
+{
+    if (m_constraint == nullptr)
+        return QVector3D();
+
+    return PhysicsUtils::toQtType(static_cast<JPH::SwingTwistConstraint *>(m_constraint)->GetTotalLambdaMotor());
+}
+
 void SwingTwistConstraint::updateJoltObject()
 {
     if (m_jolt == nullptr || m_body1 == nullptr || m_body2 == nullptr || m_constraint)
@@ -290,6 +499,52 @@ void SwingTwistConstraint::updateJoltObject()
     m_constraintSettings.mTwistMinAngle = qDegreesToRadians(m_twistMinAngle);
     m_constraintSettings.mTwistMaxAngle = qDegreesToRadians(m_twistMaxAngle);
 
+    if (m_swingMotorSettings)
+        m_constraintSettings.mSwingMotorSettings = m_swingMotorSettings->getJoltMotorSettings();
+    if (m_twistMotorSettings)
+        m_constraintSettings.mTwistMotorSettings = m_twistMotorSettings->getJoltMotorSettings();
+
     m_constraint = m_constraintSettings.Create(*m_body1->m_body, *m_body2->m_body);
+
+    auto *st = static_cast<JPH::SwingTwistConstraint *>(m_constraint);
+
+    if (m_swingMotorState != MotorState::Off)
+        st->SetSwingMotorState(static_cast<JPH::EMotorState>(m_swingMotorState));
+    if (m_twistMotorState != MotorState::Off)
+        st->SetTwistMotorState(static_cast<JPH::EMotorState>(m_twistMotorState));
+
+    if (m_swingMotorState == MotorState::Velocity || m_twistMotorState == MotorState::Velocity) {
+        const JPH::Vec3 radPerSec(qDegreesToRadians(m_targetAngularVelocityCS.x()),
+                                  qDegreesToRadians(m_targetAngularVelocityCS.y()),
+                                  qDegreesToRadians(m_targetAngularVelocityCS.z()));
+        st->SetTargetAngularVelocityCS(radPerSec);
+    }
+
+    if (m_swingMotorState == MotorState::Position || m_twistMotorState == MotorState::Position)
+        st->SetTargetOrientationCS(PhysicsUtils::toJoltType(m_targetOrientationCS));
+
     m_jolt->AddConstraint(m_constraint);
+}
+
+JPH::Ref<JPH::TwoBodyConstraintSettings> SwingTwistConstraint::createJoltConstraintSettings() const
+{
+    auto *s = new JPH::SwingTwistConstraintSettings();
+    s->mPosition1 = PhysicsUtils::toJoltType(m_position1);
+    s->mPosition2 = PhysicsUtils::toJoltType(m_position2);
+    s->mTwistAxis1 = PhysicsUtils::toJoltType(m_twistAxis1);
+    s->mTwistAxis2 = PhysicsUtils::toJoltType(m_twistAxis2);
+    s->mPlaneAxis1 = PhysicsUtils::toJoltType(m_planeAxis1);
+    s->mPlaneAxis2 = PhysicsUtils::toJoltType(m_planeAxis2);
+    s->mNormalHalfConeAngle = qDegreesToRadians(m_normalHalfConeAngle);
+    s->mPlaneHalfConeAngle = qDegreesToRadians(m_planeHalfConeAngle);
+    s->mTwistMinAngle = qDegreesToRadians(m_twistMinAngle);
+    s->mTwistMaxAngle = qDegreesToRadians(m_twistMaxAngle);
+    s->mMaxFrictionTorque = m_constraintSettings.mMaxFrictionTorque;
+
+    if (m_swingMotorSettings)
+        s->mSwingMotorSettings = m_swingMotorSettings->getJoltMotorSettings();
+    if (m_twistMotorSettings)
+        s->mTwistMotorSettings = m_twistMotorSettings->getJoltMotorSettings();
+
+    return s;
 }

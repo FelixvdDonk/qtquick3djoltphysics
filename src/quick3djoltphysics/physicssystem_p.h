@@ -3,11 +3,14 @@
 
 #include "physicslayers.h"
 #include "physicssettings_p.h"
+#include "physicsstate_p.h"
 #include "raycastresult_p.h"
 #include "collideshaperesult_p.h"
 #include "shapecastresult_p.h"
 #include "triangleresult_p.h"
 #include "abstractcontactlistener.h"
+#include "abstractsoftbodycontactlistener.h"
+#include "abstractphysicssteplistener_p.h"
 #include "qtquick3djoltphysicsglobal_p.h"
 
 #include <QtQuick3DJoltPhysics/qtquick3djoltphysicsglobal.h>
@@ -16,6 +19,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QtQml/qqml.h>
+#include <QtQml/QQmlListProperty>
 #include <QAbstractAnimation>
 
 #include <QtQuick3D/private/qquick3dviewport_p.h>
@@ -62,7 +66,12 @@ class Q_QUICK3DJOLTPHYSICS_EXPORT PhysicsSystem : public QObject, public QQmlPar
     Q_PROPERTY(AbstractObjectVsBroadPhaseLayerFilter *objectVsBroadPhaseLayerFilter READ objectVsBroadPhaseLayerFilter WRITE
                    setObjectVsBroadPhaseLayerFilter NOTIFY objectVsBroadPhaseLayerFilterChanged)
     Q_PROPERTY(AbstractContactListener *contactListener READ contactListener WRITE setContactListener NOTIFY contactListenerChanged)
+    Q_PROPERTY(AbstractSoftBodyContactListener *softBodyContactListener READ softBodyContactListener WRITE setSoftBodyContactListener NOTIFY softBodyContactListenerChanged)
     Q_PROPERTY(QQuick3DNode *scene READ scene WRITE setScene NOTIFY sceneChanged)
+    Q_PROPERTY(float timeScale READ timeScale WRITE setTimeScale NOTIFY timeScaleChanged)
+    Q_PROPERTY(float fixedTimestep READ fixedTimestep WRITE setFixedTimestep NOTIFY fixedTimestepChanged)
+    Q_PROPERTY(int maxSubSteps READ maxSubSteps WRITE setMaxSubSteps NOTIFY maxSubStepsChanged)
+    Q_PROPERTY(QQmlListProperty<AbstractPhysicsStepListener> stepListeners READ stepListeners CONSTANT)
 
     QML_NAMED_ELEMENT(PhysicsSystem)
 public:
@@ -110,8 +119,24 @@ public:
     void setObjectVsBroadPhaseLayerFilter(AbstractObjectVsBroadPhaseLayerFilter *objectVsBroadPhaseLayerFilter);
     AbstractContactListener *contactListener() const;
     void setContactListener(AbstractContactListener *contactListener);
+    AbstractSoftBodyContactListener *softBodyContactListener() const;
+    void setSoftBodyContactListener(AbstractSoftBodyContactListener *listener);
     QQuick3DNode *scene() const;
     void setScene(QQuick3DNode *scene);
+
+    float timeScale() const;
+    void setTimeScale(float timeScale);
+    float fixedTimestep() const;
+    void setFixedTimestep(float fixedTimestep);
+    int maxSubSteps() const;
+    void setMaxSubSteps(int maxSubSteps);
+
+    Q_INVOKABLE void stepPhysics(float deltaTimeSeconds, int collisionSteps = -1);
+
+    Q_INVOKABLE PhysicsState *saveState();
+    Q_INVOKABLE bool restoreState(PhysicsState *state);
+
+    QQmlListProperty<AbstractPhysicsStepListener> stepListeners();
 
     Q_INVOKABLE RayCastResult castRay(const QVector3D &origin, const QVector3D &direction, const QVector<AbstractPhysicsBody *> &bodyFilter) const;
     Q_INVOKABLE RayCastResult castRay(const QVector3D &origin, const QVector3D &direction, quint32 objectLayerFilter, const QVector<AbstractPhysicsBody *> &bodyFilter) const;
@@ -148,7 +173,11 @@ signals:
     void broadPhaseLayerChanged(AbstractBroadPhaseLayer *broadPhaseLayer);
     void objectVsBroadPhaseLayerFilterChanged(AbstractObjectVsBroadPhaseLayerFilter *objectVsBroadPhaseLayerFilter);
     void contactListenerChanged(AbstractContactListener *contactListener);
+    void softBodyContactListenerChanged(AbstractSoftBodyContactListener *listener);
     void sceneChanged(QQuick3DNode *scene);
+    void timeScaleChanged(float timeScale);
+    void fixedTimestepChanged(float fixedTimestep);
+    void maxSubStepsChanged(int maxSubSteps);
     void updateFrame(float frequency, int collisionSteps);
     void beforeFrameDone(float deltaTime);
     void frameDone(float deltaTime);
@@ -158,8 +187,14 @@ private:
     void matchOrphanPhysicsNodes();
     void findPhysicsNodes();
     void updateCurrentTime(int currentTime);
+    void doPhysicsStep(float deltaTime, int collisionSteps);
     void refresh();
     void emitContactCallbacks();
+
+    static void appendStepListener(QQmlListProperty<AbstractPhysicsStepListener> *list, AbstractPhysicsStepListener *listener);
+    static qsizetype stepListenerCount(QQmlListProperty<AbstractPhysicsStepListener> *list);
+    static AbstractPhysicsStepListener *stepListenerAt(QQmlListProperty<AbstractPhysicsStepListener> *list, qsizetype index);
+    static void clearStepListeners(QQmlListProperty<AbstractPhysicsStepListener> *list);
 
     friend class PhysicsSystemAnimation;
     friend class PhysicsSystemUpdate;
@@ -183,6 +218,10 @@ private:
     quint32 m_maxContactConstraints = 20480;
     int m_numThreads = -1;
     QQuick3DNode *m_scene = nullptr;
+    float m_timeScale = 1.0f;
+    float m_fixedTimestep = 0.0f;
+    int m_maxSubSteps = 8;
+    float m_timeAccumulator = 0.0f;
 
     JPH::PhysicsSystem *m_jolt = nullptr;
     JPH::TempAllocator *m_tempAllocator = nullptr;
@@ -192,6 +231,9 @@ private:
     AbstractBroadPhaseLayer *m_broadPhaseLayer = nullptr;
     AbstractObjectVsBroadPhaseLayerFilter *m_objectVsBroadPhaseLayerFilter = nullptr;
     AbstractContactListener *m_contactListener = nullptr;
+    AbstractSoftBodyContactListener *m_softBodyContactListener = nullptr;
+
+    QList<AbstractPhysicsStepListener *> m_stepListeners;
 
     JPH::CharacterVsCharacterCollisionSimple m_characterVsCharacterCollision;
 

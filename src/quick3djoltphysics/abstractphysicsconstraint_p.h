@@ -9,8 +9,12 @@
 #include <QtQml/QQmlEngine>
 #include <QObject>
 
+#include <Jolt/Jolt.h>
+#include <Jolt/Core/Reference.h>
+
 namespace JPH {
 class Constraint;
+class TwoBodyConstraintSettings;
 }
 
 class Q_QUICK3DJOLTPHYSICS_EXPORT AbstractPhysicsConstraint : public AbstractPhysicsNode
@@ -22,10 +26,15 @@ public:
     explicit AbstractPhysicsConstraint(QQuick3DNode *parent = nullptr);
     ~AbstractPhysicsConstraint() override;
 
+    virtual JPH::Ref<JPH::TwoBodyConstraintSettings> createJoltConstraintSettings() const;
+
 protected:
     void cleanup() override;
 
     JPH::Constraint *m_constraint = nullptr;
+
+    friend class GearConstraint;
+    friend class RackAndPinionConstraint;
 };
 
 #endif // ABSTRACTCONSTRAINT_P_H

@@ -15,10 +15,13 @@ qt_internal_add_qml_module(Quick3DJoltPhysics
         abstractphysicscharacter_p.h abstractphysicscharacter.cpp
         abstractphysicsconstraint_p.h abstractphysicsconstraint.cpp
         abstractphysicsnode_p.h abstractphysicsnode.cpp
+        abstractphysicssteplistener_p.h abstractphysicssteplistener.cpp
         abstractshape_p.h abstractshape.cpp
+        abstractsoftbodycontactlistener.h abstractsoftbodycontactlistener.cpp
         body_p.h body.cpp
         boxshape_p.h boxshape.cpp
         capsuleshape_p.h capsuleshape.cpp
+        coneconstraint_p.h coneconstraint.cpp
         character_p.h character.cpp
         abstractcharactercontactlistener.h abstractcharactercontactlistener.cpp
         charactervirtual_p.h charactervirtual.cpp
@@ -30,22 +33,38 @@ qt_internal_add_qml_module(Quick3DJoltPhysics
         distanceconstraint_p.h distanceconstraint.cpp
         emptyshape_p.h emptyshape.cpp
         fixedconstraint_p.h fixedconstraint.cpp
+        gearconstraint_p.h gearconstraint.cpp
         groupfiltertable_p.h groupfiltertable.cpp
         heightfieldshape_p.h heightfieldshape.cpp
+        hermitepath_p.h hermitepath.cpp
         hingeconstraint_p.h hingeconstraint.cpp
         meshshape_p.h meshshape.cpp
+        motorsettings_p.h motorsettings.cpp
+        pathconstraint_p.h pathconstraint.cpp
+        pathconstraintpath_p.h pathconstraintpath.cpp
         physicslayers.h physicslayers.cpp
         physicsmeshutils_p_p.h
         physicssettings_p.h physicssettings.cpp
+        physicsstate_p.h physicsstate.cpp
         physicssystem_p.h physicssystem.cpp
         physicsutils_p.h
         planeshape_p.h planeshape.cpp
+        pulleyconstraint_p.h pulleyconstraint.cpp
+        rackandpinionconstraint_p.h rackandpinionconstraint.cpp
+        ragdoll_p.h ragdoll.cpp
+        ragdollpart_p.h ragdollpart.cpp
         pointconstraint_p.h pointconstraint.cpp
+        physicsskeleton_p.h physicsskeleton.cpp
         qtquick3djoltphysicsglobal.h
         qtquick3djoltphysicsglobal_p.h
         raycastresult_p.h raycastresult.cpp
         rotatedtranslatedshape_p.h rotatedtranslatedshape.cpp
+        skeletonjoint_p.h skeletonjoint.cpp
         shapecastresult_p.h shapecastresult.cpp
+        sixdofconstraint_p.h sixdofconstraint.cpp
+        sliderconstraint_p.h sliderconstraint.cpp
+        softbody_p.h softbody.cpp
+        softbodysharedsettings_p.h softbodysharedsettings.cpp
         sphereshape_p.h sphereshape.cpp
         springsettings_p.h springsettings.cpp
         staticcompoundshape_p.h staticcompoundshape.cpp
