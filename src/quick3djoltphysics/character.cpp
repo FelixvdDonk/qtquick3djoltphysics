@@ -118,7 +118,12 @@ void Character::postSimulation(float maxSeparationDistance)
 
 bool Character::setShape(float maxPenetrationDepth)
 {
+    if (m_character == nullptr || m_shape == nullptr)
+        return false;
+
     auto shape = m_shape->getJoltShape();
+    if (!shape)
+        return false;
 
     if (shape->MustBeStatic()) {
         qWarning() << "Character: Cannot make character containing static shape.";
@@ -135,10 +140,17 @@ JPH::CharacterBase *Character::character() const
 
 void Character::updateJoltObject()
 {
-    if (m_character || m_jolt == nullptr || m_shape == nullptr)
+    if (m_jolt == nullptr || m_shape == nullptr)
         return;
 
     auto shape = m_shape->getJoltShape();
+    if (!shape) {
+        cleanup();
+        return;
+    }
+
+    if (m_character)
+        return;
 
     if (shape->MustBeStatic()) {
         qWarning() << "Character: Cannot make character containing static shape.";

@@ -509,6 +509,7 @@ void MeshShape::setGeometry(QQuick3DGeometry *newGeometry)
 
     // New geometry means we get a new mesh so deref the old one
     MeshManager::releaseMesh(m_mesh);
+    m_mesh = nullptr;
     if (m_geometry != nullptr)
         m_mesh = MeshManager::getMesh(m_geometry);
 
@@ -548,6 +549,9 @@ void MeshShape::createJoltShape()
     meshShapeSettings->mActiveEdgeCosThresholdAngle = m_activeEdgeCosThresholdAngle;
 
     auto shapeResult = meshShapeSettings->Create();
+    if (shapeResult.HasError())
+        return;
+    
     m_joltShape = shapeResult.Get();
     m_joltShape = new JPH::ScaledShape(m_joltShape, PhysicsUtils::toJoltType(sceneScale()));
 }

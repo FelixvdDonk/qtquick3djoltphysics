@@ -31,8 +31,6 @@ void AbstractShape::setDensity(float density)
 
 JPH::Ref<JPH::Shape> AbstractShape::getJoltShape()
 {
-    m_shapeInitialized = true;
-
     if (m_joltShape == nullptr)
         updateJoltShape();
 
@@ -41,11 +39,9 @@ JPH::Ref<JPH::Shape> AbstractShape::getJoltShape()
 
 void AbstractShape::updateJoltShape()
 {
-    if (!m_shapeInitialized)
-        return;
-
+    m_joltShape = nullptr;
+    
     createJoltShape();
-    Q_ASSERT(m_joltShape);
 
     updateJoltShapeDensity();
 }
@@ -74,6 +70,9 @@ static JPH::ConvexShape *getInnerConvexShape(JPH::Shape *shape)
 
 void AbstractShape::updateJoltShapeDensity()
 {
+    if (!m_joltShape)
+        return;
+
     auto *convexShape = getInnerConvexShape(m_joltShape.GetPtr());
     if (convexShape)
         convexShape->SetDensity(m_density);

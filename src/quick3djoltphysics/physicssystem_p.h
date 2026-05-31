@@ -16,8 +16,8 @@
 #include <QLoggingCategory>
 #include <QObject>
 #include <QPointer>
+#include <QElapsedTimer>
 #include <QtQml/qqml.h>
-#include <QAbstractAnimation>
 
 #include <QtQuick3D/private/qquick3dviewport_p.h>
 
@@ -38,8 +38,7 @@ Q_DECLARE_LOGGING_CATEGORY(lcQuick3dJoltPhysics)
 class AbstractPhysicsNode;
 class CharacterVirtual;
 class BodyFilter;
-class PhysicsSystemAnimation;
-class PhysicsSystemUpdate;
+class FrameAnimator;
 
 class Q_QUICK3DJOLTPHYSICS_EXPORT PhysicsSystem : public QObject, public QQmlParserStatus
 {
@@ -51,6 +50,8 @@ class Q_QUICK3DJOLTPHYSICS_EXPORT PhysicsSystem : public QObject, public QQmlPar
     Q_PROPERTY(QVector3D gravity READ gravity WRITE setGravity NOTIFY gravityChanged)
     Q_PROPERTY(bool running READ running WRITE setRunning NOTIFY runningChanged)
     Q_PROPERTY(int collisionSteps READ collisionSteps WRITE setCollisionSteps NOTIFY collisionStepsChanged)
+    Q_PROPERTY(float minimumTimestep READ minimumTimestep WRITE setMinimumTimestep NOTIFY minimumTimestepChanged)
+    Q_PROPERTY(float maximumTimestep READ maximumTimestep WRITE setMaximumTimestep NOTIFY maximumTimestepChanged)
     Q_PROPERTY(quint32 numBodies READ numBodies WRITE setNumBodies NOTIFY numBodiesChanged)
     Q_PROPERTY(quint32 numBodyMutexes READ numBodyMutexes WRITE setNumBodyMutexes NOTIFY numBodyMutexesChanged)
     Q_PROPERTY(quint32 maxBodyPairs READ maxBodyPairs WRITE setMaxBodyPairs NOTIFY maxBodyPairsChanged)
@@ -94,6 +95,10 @@ public:
     void setRunning(bool running);
     int collisionSteps() const;
     void setCollisionSteps(int collisionSteps);
+    float minimumTimestep() const;
+    void setMinimumTimestep(float minimumTimestep);
+    float maximumTimestep() const;
+    void setMaximumTimestep(float maximumTimestep);
     quint32 numBodies() const;
     void setNumBodies(quint32 maxBodies);
     quint32 numBodyMutexes() const;
@@ -143,6 +148,8 @@ signals:
     void gravityChanged(QVector3D gravity);
     void runningChanged(bool running);
     void collisionStepsChanged(int collisionSteps);
+    void minimumTimestepChanged(float minimumTimestep);
+    void maximumTimestepChanged(float maximumTimestep);
     void numBodiesChanged(quint32 maxBodies);
     void numBodyMutexesChanged(quint32 numBodyMutexes);
     void maxBodyPairsChanged(quint32 maxBodyPairs);
@@ -154,7 +161,6 @@ signals:
     void contactListenerChanged(AbstractContactListener *contactListener);
     void softBodyContactListenerChanged(AbstractSoftBodyContactListener *listener);
     void sceneChanged(QQuick3DNode *scene);
-    void updateFrame(float frequency, int collisionSteps);
     void beforeFrameDone(float deltaTime);
     void frameDone(float deltaTime);
 
@@ -162,25 +168,25 @@ private:
     void initPhysics();
     void matchOrphanPhysicsNodes();
     void findPhysicsNodes();
-    void updateCurrentTime(int currentTime);
-    void refresh();
+    void simulateFrame();
     void emitContactCallbacks();
 
-    friend class PhysicsSystemAnimation;
-    friend class PhysicsSystemUpdate;
+    friend class FrameAnimator;
 
     QList<AbstractPhysicsNode *> m_physicsNodes;
 
     int m_startTime = 0;
     int m_time = 0;
 
-    int m_currentTime = 0;
-
     PhysicsSettings *m_settings = nullptr;
     bool m_settingsDirty = false;
     QVector3D m_gravity = QVector3D(0.f, -981.f, 0.f);
     bool m_running = true;
     int m_collisionSteps = 1;
+    float m_minimumTimestep = 1.0f;
+    float m_maximumTimestep = 33.333f;
+    QElapsedTimer m_frameTimer;
+    bool m_frameTimerStarted = false;
     quint32 m_numBodies = 10240;
     quint32 m_numBodyMutexes = 0;
     quint32 m_maxBodyPairs = 65536;
@@ -191,7 +197,6 @@ private:
     JPH::PhysicsSystem *m_jolt = nullptr;
     JPH::TempAllocator *m_tempAllocator = nullptr;
     JPH::JobSystem *m_jobSystem = nullptr;
-    JPH::JobSystem *m_jobSystemValidating = nullptr;
     AbstractObjectLayerPairFilter *m_objectLayerPairFilter = nullptr;
     AbstractBroadPhaseLayer *m_broadPhaseLayer = nullptr;
     AbstractObjectVsBroadPhaseLayerFilter *m_objectVsBroadPhaseLayerFilter = nullptr;
@@ -200,61 +205,8 @@ private:
 
     JPH::CharacterVsCharacterCollisionSimple m_characterVsCharacterCollision;
 
-    PhysicsSystemAnimation *m_animation = nullptr;
-    PhysicsSystemUpdate *m_updateAnimation = nullptr;
+    FrameAnimator *m_frameAnimator = nullptr;
     bool m_physicsInitialized = false;
-};
-
-class PhysicsSystemAnimation : public QAbstractAnimation
-{
-    Q_OBJECT
-public:
-    PhysicsSystemAnimation(PhysicsSystem *system)
-        : QAbstractAnimation(static_cast<QObject *>(system)), m_system(system)
-    {}
-protected:
-    void updateCurrentTime(int t) override
-    {
-        m_system->updateCurrentTime(t + m_system->startTime());
-    }
-
-    int duration() const override
-    {
-        return -1;
-    }
-
-private:
-    PhysicsSystem *m_system = nullptr;
-};
-
-class PhysicsSystemUpdate : public QAbstractAnimation
-{
-    Q_OBJECT
-public:
-    PhysicsSystemUpdate(PhysicsSystem *system)
-        : QAbstractAnimation(static_cast<QObject *>(system)), m_system(system)
-    {}
-
-    void setDirty(bool dirty)
-    {
-        m_dirty = dirty;
-    }
-
-protected:
-    void updateCurrentTime(int t) override
-    {
-        Q_UNUSED(t);
-        if (m_dirty)
-            m_system->refresh();
-    }
-
-    int duration() const override
-    {
-        return -1;
-    }
-private:
-    PhysicsSystem *m_system = nullptr;
-    bool m_dirty = false;
 };
 
 #endif // PHYSICSSYSTEM_P_H

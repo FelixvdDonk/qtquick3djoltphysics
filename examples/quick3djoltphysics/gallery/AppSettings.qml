@@ -27,6 +27,8 @@ QtObject {
 
     property int maxConcurrentJobs: 0
     property int gravity: 10
+    property real minimumTimestep: 1.0
+    property real maximumTimestep: 33.333
     property int collisionSteps: 1
     property int numVelocitySteps: 10
     property int numPositionSteps: 2

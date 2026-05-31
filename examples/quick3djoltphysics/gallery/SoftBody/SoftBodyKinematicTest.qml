@@ -22,9 +22,10 @@ Item {
         id: physicsSystem
         scene: viewport.scene
         running: AppSettings.playPhysics
-        time: timer.elapsedTime * 1000
         gravity: Qt.vector3d(0, -AppSettings.gravity, 0)
         numThreads: AppSettings.maxConcurrentJobs
+        minimumTimestep: AppSettings.minimumTimestep
+        maximumTimestep: AppSettings.maximumTimestep
         collisionSteps: AppSettings.collisionSteps
         objectLayerPairFilter: ExampleObjectLayerPairFilter {}
         broadPhaseLayer: ExampleBroadPhaseLayer {}
@@ -51,10 +52,6 @@ Item {
         onBeforeFrameDone: (deltaTime) => updateKinematicVertex()
     }
 
-    FrameAnimation {
-        id: timer
-        running: AppSettings.playPhysics
-    }
 
     function updateKinematicVertex() {
         const comZ = softBody.centerOfMassPosition().z

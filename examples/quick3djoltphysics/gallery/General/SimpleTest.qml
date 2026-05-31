@@ -19,10 +19,11 @@ Item {
     PhysicsSystem {
         id: physicsSystem
         scene: viewport.scene
-        running: false
-        time: timer.elapsedTime * 1000
+        running: AppSettings.playPhysics
         gravity: Qt.vector3d(0, -AppSettings.gravity, 0)
         numThreads: AppSettings.maxConcurrentJobs
+        minimumTimestep: AppSettings.minimumTimestep
+        maximumTimestep: AppSettings.maximumTimestep
         collisionSteps: AppSettings.collisionSteps
         objectLayerPairFilter: ExampleObjectLayerPairFilter {}
         broadPhaseLayer: ExampleBroadPhaseLayer {}
@@ -45,11 +46,6 @@ Item {
             allowSleeping: AppSettings.allowSleeping
             checkActiveEdges: AppSettings.checkActiveEdges
         }
-    }
-
-    FrameAnimation {
-        id: timer
-        running: AppSettings.playPhysics
     }
 
     SampleCameraController {

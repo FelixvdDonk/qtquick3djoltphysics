@@ -247,6 +247,7 @@ void SoftBody::updateJoltObject()
 {
     if (!m_sharedSettings) {
         qWarning() << "SoftBody: sharedSettings is required";
+        cleanup();
         return;
     }
 

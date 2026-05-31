@@ -34,7 +34,6 @@ protected:
     void handleShapeChange();
 
     JPH::Ref<JPH::Shape> m_joltShape = nullptr;
-    bool m_shapeInitialized = false;
 
 private:
     void updateJoltShapeDensity();

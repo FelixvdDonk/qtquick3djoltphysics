@@ -10,6 +10,8 @@ Item {
 
     property int maxConcurrentJobs
     property int gravity
+    property real minimumTimestep
+    property real maximumTimestep
     property int collisionSteps
     property int numVelocitySteps
     property int numPositionSteps
@@ -58,6 +60,8 @@ Item {
         onAboutToShow: {
             maxConcurrentJobs = AppSettings.maxConcurrentJobs
             gravity = AppSettings.gravity
+            minimumTimestep = AppSettings.minimumTimestep
+            maximumTimestep = AppSettings.maximumTimestep
             collisionSteps = AppSettings.collisionSteps
             numVelocitySteps = AppSettings.numVelocitySteps
             numPositionSteps = AppSettings.numPositionSteps
@@ -103,6 +107,34 @@ Item {
                 sliderStepSize: 1
                 onSliderValueChanged: {
                     gravity = sliderValue
+                }
+            }
+
+            CustomLabel {
+                text: "Minimum Timestep (ms)"
+            }
+
+            CustomSlider {
+                sliderValue: minimumTimestep
+                fromValue: 0.1
+                toValue: 10
+                sliderStepSize: 0.1
+                onSliderValueChanged: {
+                    minimumTimestep = sliderValue
+                }
+            }
+
+            CustomLabel {
+                text: "Maximum Timestep (ms)"
+            }
+
+            CustomSlider {
+                sliderValue: maximumTimestep
+                fromValue: 1
+                toValue: 250
+                sliderStepSize: 1
+                onSliderValueChanged: {
+                    maximumTimestep = sliderValue
                 }
             }
 
@@ -297,6 +329,8 @@ Item {
                     onClicked: {
                         AppSettings.maxConcurrentJobs = maxConcurrentJobs
                         AppSettings.gravity = gravity
+                        AppSettings.minimumTimestep = minimumTimestep
+                        AppSettings.maximumTimestep = maximumTimestep
                         AppSettings.collisionSteps = collisionSteps
                         AppSettings.numVelocitySteps = numVelocitySteps
                         AppSettings.numPositionSteps = numPositionSteps

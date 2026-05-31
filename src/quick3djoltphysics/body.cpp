@@ -698,6 +698,10 @@ void Body::updateJoltObject()
         return;
 
     auto shape = m_shape->getJoltShape();
+    if (!shape) {
+        cleanup();
+        return;
+    }
 
     if (m_body) {
         m_bodyInterface->SetShape(m_body->GetID(), shape, true, static_cast<JPH::EActivation>(m_activation));

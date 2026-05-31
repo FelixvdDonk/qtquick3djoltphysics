@@ -4,6 +4,8 @@
 #include "charactervirtual_p.h"
 #include "physicsutils_p.h"
 
+#include <QtQuick/private/qquickframeanimation_p.h>
+
 #include <Jolt/Jolt.h>
 #include <Jolt/RegisterTypes.h>
 #include <Jolt/Core/Factory.h>
@@ -21,6 +23,17 @@
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 
+class FrameAnimator : public QQuickFrameAnimation
+{
+    Q_OBJECT
+public:
+    FrameAnimator() : QQuickFrameAnimation()
+    {
+        classBegin();
+        componentComplete();
+    }
+};
+
 Q_LOGGING_CATEGORY(lcQuick3dJoltPhysics, "qt.quick3d.joltphysics")
 
 int g_factoryRefCount = 0;
@@ -35,9 +48,10 @@ static PhysicsSystemManager physicsSystemManager = PhysicsSystemManager {};
 
 PhysicsSystem::PhysicsSystem(QObject *parent)
     : QObject(parent)
-    , m_animation(new PhysicsSystemAnimation(this))
-    , m_updateAnimation(new PhysicsSystemUpdate(this))
+    , m_frameAnimator(new FrameAnimator)
 {
+    connect(m_frameAnimator, &QQuickFrameAnimation::triggered, this, &PhysicsSystem::simulateFrame);
+
     if (g_factoryRefCount == 0) {
         JPH::RegisterDefaultAllocator();
         JPH::Factory::sInstance = new JPH::Factory;
@@ -51,8 +65,10 @@ PhysicsSystem::PhysicsSystem(QObject *parent)
 
 PhysicsSystem::~PhysicsSystem()
 {
-    m_animation->stop();
-    m_updateAnimation->stop();
+    if (m_frameAnimator) {
+        m_frameAnimator->stop();
+        delete m_frameAnimator;
+    }
 
     for (auto *physicsNode : std::as_const(m_physicsNodes))
         physicsNode->cleanup();
@@ -79,15 +95,13 @@ void PhysicsSystem::componentComplete()
     if (!m_physicsInitialized)
         initPhysics();
 
-    m_updateAnimation->start();
-
-    if (m_animation->state() == QAbstractAnimation::Running)
-        m_animation->stop();
-    if (m_running)
-        m_animation->start();
+    if (m_running) {
+        m_frameTimer.start();
+        m_frameTimerStarted = true;
+        m_frameAnimator->start();
+    }
 
     m_time = 0;
-    m_currentTime = 0;
 
     emit timeChanged(m_time);
 
@@ -177,7 +191,6 @@ void PhysicsSystem::setTime(int time)
         return;
 
     m_time = time;
-    m_updateAnimation->setDirty(true);
     emit timeChanged(m_time);
 }
 
@@ -238,10 +251,14 @@ void PhysicsSystem::setRunning(bool running)
     if (m_running == running)
         return;
     m_running = running;
-    if (m_running)
-        m_animation->start();
-    else
-        m_animation->stop();
+    if (m_running) {
+        m_frameTimer.start();
+        m_frameTimerStarted = true;
+        m_frameAnimator->start();
+    } else {
+        m_frameTimerStarted = false;
+        m_frameAnimator->stop();
+    }
 
     emit runningChanged(m_running);
 }
@@ -258,6 +275,50 @@ void PhysicsSystem::setCollisionSteps(int collisionSteps)
 
     m_collisionSteps = collisionSteps;
     emit collisionStepsChanged(m_collisionSteps);
+}
+
+float PhysicsSystem::minimumTimestep() const
+{
+    return m_minimumTimestep;
+}
+
+void PhysicsSystem::setMinimumTimestep(float minimumTimestep)
+{
+    if (minimumTimestep < 0.f)
+        minimumTimestep = 0.f;
+
+    if (minimumTimestep > m_maximumTimestep) {
+        qWarning() << "minimumTimestep cannot be greater than maximumTimestep. Clamping.";
+        minimumTimestep = m_maximumTimestep;
+    }
+
+    if (qFuzzyCompare(m_minimumTimestep, minimumTimestep))
+        return;
+
+    m_minimumTimestep = minimumTimestep;
+    emit minimumTimestepChanged(m_minimumTimestep);
+}
+
+float PhysicsSystem::maximumTimestep() const
+{
+    return m_maximumTimestep;
+}
+
+void PhysicsSystem::setMaximumTimestep(float maximumTimestep)
+{
+    if (maximumTimestep < 0.f)
+        maximumTimestep = 0.f;
+
+    if (qFuzzyCompare(m_maximumTimestep, maximumTimestep))
+        return;
+
+    m_maximumTimestep = maximumTimestep;
+    emit maximumTimestepChanged(m_maximumTimestep);
+
+    if (m_minimumTimestep > m_maximumTimestep) {
+        m_minimumTimestep = m_maximumTimestep;
+        emit minimumTimestepChanged(m_minimumTimestep);
+    }
 }
 
 quint32 PhysicsSystem::numBodies() const
@@ -1124,47 +1185,48 @@ void PhysicsSystem::findPhysicsNodes()
     }
 }
 
-void PhysicsSystem::updateCurrentTime(int currentTime)
+void PhysicsSystem::simulateFrame()
 {
-    int dt = m_currentTime;
-    m_currentTime = currentTime;
-    int time = m_currentTime;
-
-    dt = time - dt;
-
-    float deltaTime = dt / 1000.0f;
-    if (deltaTime < 0.0f)
+    if (!m_frameTimerStarted) {
+        m_frameTimer.start();
+        m_frameTimerStarted = true;
         return;
+    }
+
+    const float deltaTime = m_frameTimer.nsecsElapsed() / 1000000000.0f;
+
+    const float minTimestepSecs = m_minimumTimestep / 1000.0f;
+    if (deltaTime < minTimestepSecs)
+        return;
+
+    m_frameTimer.restart();
+
+    float step = deltaTime;
+    const float maxTimestepSecs = m_maximumTimestep / 1000.0f;
+    if (step > maxTimestepSecs)
+        step = maxTimestepSecs;
 
     matchOrphanPhysicsNodes();
     emitContactCallbacks();
-
-    emit beforeFrameDone(deltaTime);
 
     if (m_settingsDirty) {
         m_settingsDirty = false;
         m_jolt->SetPhysicsSettings(m_settings ? m_settings->getJoltPhysicsSettings() : JPH::PhysicsSettings());
     }
 
+    emit beforeFrameDone(step);
+
     QHash<QQuick3DNode *, QMatrix4x4> transformCache;
 
     for (auto physicsNode : std::as_const(m_physicsNodes))
-        physicsNode->preSync(deltaTime, transformCache);
+        physicsNode->preSync(step, transformCache);
 
-    m_jolt->Update(deltaTime, m_collisionSteps, m_tempAllocator, m_jobSystem);
+    m_jolt->Update(step, m_collisionSteps, m_tempAllocator, m_jobSystem);
 
     for (auto physicsNode : std::as_const(m_physicsNodes))
         physicsNode->sync();
 
-    emit frameDone(deltaTime);
-
-    m_updateAnimation->setDirty(false);
-}
-
-void PhysicsSystem::refresh()
-{
-    if (!m_running)
-        m_animation->setCurrentTime(m_time);
+    emit frameDone(step);
 }
 
 void PhysicsSystem::emitContactCallbacks()
@@ -1251,3 +1313,5 @@ void PhysicsSystem::emitContactCallbacks()
     m_contactListener->m_enteredBodyContacts.clear();
     m_contactListener->m_exitedBodyContacts.clear();
 }
+
+#include "physicssystem.moc"

@@ -470,6 +470,8 @@ bool CharacterVirtual::setShape(float maxPenetrationDepth, quint32 objectLayerFi
         return false;
 
     auto shape = m_shape->getJoltShape();
+    if (!shape)
+        return false;
 
     if (shape->MustBeStatic()) {
         qWarning() << "CharacterVirtual: Cannot make character containing static shape.";
@@ -498,16 +500,29 @@ JPH::CharacterBase *CharacterVirtual::character() const
 
 void CharacterVirtual::updateJoltObject()
 {
-    if (m_character || m_jolt == nullptr || m_shape == nullptr)
+    if (m_jolt == nullptr || m_shape == nullptr)
         return;
 
     auto shape = m_shape->getJoltShape();
+    if (!shape) {
+        cleanup();
+        return;
+    }
+
+    if (m_character)
+        return;
+
     if (shape->MustBeStatic()) {
         qWarning() << "CharacterVirtual: Cannot make character containing static shape.";
         return;
     }
 
     JPH::Ref<JPH::Shape> joltInnerBodyShape = m_innerBodyShape ? m_innerBodyShape->getJoltShape() : new JPH::EmptyShape();
+    if (!joltInnerBodyShape) {
+        cleanup();
+        return;
+    }
+
     if (joltInnerBodyShape->MustBeStatic()) {
         qWarning() << "CharacterVirtual: Cannot make character containing static inner body shape.";
         return;
